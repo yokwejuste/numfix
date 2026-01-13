@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -271,8 +273,8 @@ class _HomeScreenState extends State<HomeScreen> {
     String? path;
     try {
       path = await ExcelService.exportResults(_results);
+      debugPrint('exportResults returned path: $path');
     } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       setState(() {
         _isGenerating = false;
       });
@@ -293,42 +295,93 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    if (!mounted) return;
-    final theme = Theme.of(context);
     if (path != null) {
-      _addLog('Report saved to $path');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Report saved: ${path.split('/').last}'),
-          backgroundColor: theme.colorScheme.primary,
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Open',
-            textColor: Colors.white,
-            onPressed: () { _openFile(path); },
+      final savedPath = path;
+      _addLog('Report saved to $savedPath');
+      try {
+        final savedFile = File(savedPath);
+        final exists = await savedFile.exists();
+        if (!exists) {
+          _addLog('Saved file not found at $savedPath');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Report saved but file not found on disk'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else {
+            _addLog('Cannot show SnackBar: widget not mounted');
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error checking saved file existence: $e');
+      }
+
+      if (!mounted) {
+        _addLog('Report saved: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Report saved: ${savedPath.split('/').last}'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () { _openFile(savedPath); },
+            ),
           ),
-        ),
-      );
+        );
+      }
+      try {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text('Report saved'),
+              content: Text('${savedPath.split('/').last}\n\nSaved to:\n$savedPath'),
+              actions: [
+                TextButton(
+                  onPressed: () { Navigator.of(ctx).pop(); },
+                  child: const Text('Close'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _openFile(savedPath);
+                  },
+                  child: const Text('Open'),
+                ),
+              ],
+            );
+          },
+        );
+      } catch (_) {}
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to generate PDF report'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (!mounted) {
+        _addLog('Failed to generate PDF report (widget not mounted)');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to generate PDF report'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _openFile(String filePath) async {
     try {
       final uri = Uri.file(filePath);
-      // Try launching externally; some platforms may not support canLaunch for file URIs
       try {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
         return;
       } catch (_) {
-        // fallback to plain launch
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
           return;
