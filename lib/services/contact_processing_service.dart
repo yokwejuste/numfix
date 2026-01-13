@@ -15,11 +15,23 @@ class ServicePreviewItem {
 class ProcessingResult {
   final List<ContactResult> results;
   final int totalProcessed;
+
   final int updated;
   final int skipped;
   final int failed;
 
-  ProcessingResult({required this.results, required this.totalProcessed, required this.updated, required this.skipped, required this.failed});
+  final int updatedContacts;
+  final int skippedContacts;
+
+  ProcessingResult({
+    required this.results,
+    required this.totalProcessed,
+    required this.updated,
+    required this.skipped,
+    required this.failed,
+    required this.updatedContacts,
+    required this.skippedContacts,
+  });
 }
 
 class ContactProcessingService {
@@ -95,17 +107,26 @@ class ContactProcessingService {
     int skipped = 0;
     int failed = 0;
 
+    int updatedContacts = 0;
+    int skippedContacts = 0;
+    int contactsWithPhones = 0;
+
     for (final contact in contacts) {
       final contactName = contact.displayName.isNotEmpty ? contact.displayName : 'Unknown';
       if (contact.phones.isEmpty) {
         skipped++;
+        skippedContacts++;
         results.add(ContactResult(contactName: contactName, originalNumber: '', finalNumber: '', status: 'Skipped (no phones)'));
         processed++;
         onProgress?.call(totalContacts > 0 ? processed / totalContacts : 1.0);
         continue;
       }
 
+      contactsWithPhones++;
+
       bool contactModified = false;
+      bool anyPhoneProcessed = false;
+      bool anyPhoneUpdated = false;
 
       for (int i = 0; i < contact.phones.length; i++) {
         final phone = contact.phones[i];
@@ -141,6 +162,8 @@ class ContactProcessingService {
           contact.phones[i] = Phone(converted, label: phone.label, customLabel: phone.customLabel, isPrimary: phone.isPrimary);
           contactModified = true;
           updated++;
+          anyPhoneProcessed = true;
+          anyPhoneUpdated = true;
           results.add(ContactResult(contactName: contactName, originalNumber: original, finalNumber: converted, status: 'Updated'));
           onLog?.call('Updated: $contactName $original -> $converted');
           continue;
@@ -151,10 +174,13 @@ class ContactProcessingService {
           contact.phones[i] = Phone(formatted, label: phone.label, customLabel: phone.customLabel, isPrimary: phone.isPrimary);
           contactModified = true;
           updated++;
+          anyPhoneProcessed = true;
+          anyPhoneUpdated = true;
           results.add(ContactResult(contactName: contactName, originalNumber: original, finalNumber: formatted, status: 'Updated'));
           onLog?.call('Updated: $contactName $original -> $formatted');
         } else {
           failed++;
+          anyPhoneProcessed = true;
           results.add(ContactResult(contactName: contactName, originalNumber: original, finalNumber: original, status: 'Failed (invalid)'));
           onLog?.call('Failed: $contactName $original');
         }
@@ -169,12 +195,28 @@ class ContactProcessingService {
         }
       }
 
+      if (anyPhoneUpdated) {
+        updatedContacts++;
+      } else {
+        if (anyPhoneProcessed) {
+          skippedContacts++;
+        }
+      }
+
       processed++;
       if (processed % 3 == 0) onProgress?.call(totalContacts > 0 ? processed / totalContacts : 1.0);
     }
 
     onProgress?.call(1.0);
 
-    return ProcessingResult(results: results, totalProcessed: contacts.length, updated: updated, skipped: skipped, failed: failed);
+    return ProcessingResult(
+      results: results,
+      totalProcessed: contactsWithPhones,
+      updated: updated,
+      skipped: skipped,
+      failed: failed,
+      updatedContacts: updatedContacts,
+      skippedContacts: skippedContacts,
+    );
   }
 }

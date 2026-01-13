@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../models/contact_result.dart';
 import '../services/contact_processing_service.dart';
@@ -207,9 +208,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _results.clear();
         _results.addAll(result.results);
         _totalContacts = result.totalProcessed;
-        _updatedNumbers = result.updated;
-        _skippedNumbers = result.skipped;
+        _scannedNumbers = result.results.length;
+        _updatedNumbers = result.updatedContacts;
+        _skippedNumbers = result.skippedContacts;
         _failedNumbers = result.failed;
+        _contactsWithoutPhones = result.results.where((r) => r.originalNumber.isEmpty && r.status.contains('no phones')).length;
       });
 
       HomeScreen.lastResults = List.from(_results);
@@ -272,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     String? path;
     try {
-      path = await ExcelService.exportResults(_results);
+      path = await ExcelService.exportResults(_results, forcePdf: true);
       debugPrint('exportResults returned path: $path');
     } catch (e) {
       setState(() {
@@ -385,6 +388,13 @@ class _HomeScreenState extends State<HomeScreen> {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
           return;
+        }
+        try {
+          final res = await OpenFilex.open(filePath);
+          debugPrint('OpenFilex result: $res');
+          return;
+        } catch (e) {
+          debugPrint('OpenFilex failed: $e');
         }
       }
       if (!mounted) return;
@@ -667,16 +677,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'Reset Statistics',
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _downloadReportFromHome,
-                  icon: const Icon(Icons.download, size: 18),
-                  label: const Text('Download Report'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isGenerating ? null : _downloadReportFromHome,
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Download Report'),
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isGenerating ? null : _exportCsvFromHome,
+                      icon: const Icon(Icons.table_chart, size: 18),
+                      label: const Text('Export as CSV'),
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    ),
+                  ),
+                ],
               ),
             ],
             const SizedBox(height: 80),
@@ -716,6 +736,142 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _exportCsvFromHome() async {
+    if (_results.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'No processing results available. Process contacts first.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isGenerating = true;
+    });
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
+
+    String? path;
+    try {
+      path = await ExcelService.exportCsv(_results);
+      debugPrint('exportCsv returned path: $path');
+    } catch (e) {
+      setState(() {
+        _isGenerating = false;
+      });
+      _addLog('Failed to generate CSV: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate CSV: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      setState(() {
+        _isGenerating = false;
+      });
+    }
+
+    if (path != null) {
+      final savedPath = path;
+      _addLog('CSV exported to $savedPath');
+      try {
+        final savedFile = File(savedPath);
+        final exists = await savedFile.exists();
+        if (!exists) {
+          _addLog('Saved CSV file not found at $savedPath');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('CSV exported but file not found on disk'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else {
+            _addLog('Cannot show SnackBar: widget not mounted');
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error checking saved CSV file existence: $e');
+      }
+
+      if (!mounted) {
+        _addLog('CSV exported: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CSV exported: ${savedPath.split('/').last}'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () { _openFile(savedPath); },
+            ),
+          ),
+        );
+      }
+      try {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text('CSV exported'),
+              content: Text('${savedPath.split('/').last}\n\nSaved to:\n$savedPath'),
+              actions: [
+                TextButton(
+                  onPressed: () { Navigator.of(ctx).pop(); },
+                  child: const Text('Close'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _openFile(savedPath);
+                  },
+                  child: const Text('Open'),
+                ),
+              ],
+            );
+          },
+        );
+      } catch (_) {}
+    } else {
+      if (!mounted) {
+        _addLog('Failed to generate CSV (widget not mounted)');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to generate CSV'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }
 
