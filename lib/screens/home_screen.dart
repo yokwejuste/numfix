@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:open_filex/open_filex.dart';
 
 import '../models/contact_result.dart';
 import '../services/contact_processing_service.dart';
@@ -212,7 +212,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _updatedNumbers = result.updatedContacts;
         _skippedNumbers = result.skippedContacts;
         _failedNumbers = result.failed;
-        _contactsWithoutPhones = result.results.where((r) => r.originalNumber.isEmpty && r.status.contains('no phones')).length;
+        _contactsWithoutPhones = result.results
+            .where(
+              (r) => r.originalNumber.isEmpty && r.status.contains('no phones'),
+            )
+            .length;
       });
 
       HomeScreen.lastResults = List.from(_results);
@@ -323,7 +327,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       if (!mounted) {
-        _addLog('Report saved: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)');
+        _addLog(
+          'Report saved: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)',
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -333,7 +339,9 @@ class _HomeScreenState extends State<HomeScreen> {
             action: SnackBarAction(
               label: 'Open',
               textColor: Colors.white,
-              onPressed: () { _openFile(savedPath); },
+              onPressed: () {
+                _openFile(savedPath);
+              },
             ),
           ),
         );
@@ -345,10 +353,14 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (ctx) {
             return AlertDialog(
               title: const Text('Report saved'),
-              content: Text('${savedPath.split('/').last}\n\nSaved to:\n$savedPath'),
+              content: Text(
+                '${savedPath.split('/').last}\n\nSaved to:\n$savedPath',
+              ),
               actions: [
                 TextButton(
-                  onPressed: () { Navigator.of(ctx).pop(); },
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                  },
                   child: const Text('Close'),
                 ),
                 TextButton(
@@ -380,21 +392,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openFile(String filePath) async {
     try {
-      final uri = Uri.file(filePath);
       try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final res = await OpenFilex.open(filePath);
+        debugPrint('OpenFilex result: $res');
         return;
-      } catch (_) {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
-          return;
-        }
+      } catch (e) {
+        debugPrint('OpenFilex failed: $e; falling back to launchUrl');
+      }
+
+      final uri = Uri.file(filePath);
+      if (await canLaunchUrl(uri)) {
         try {
-          final res = await OpenFilex.open(filePath);
-          debugPrint('OpenFilex result: $res');
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
           return;
         } catch (e) {
-          debugPrint('OpenFilex failed: $e');
+          debugPrint('launchUrl failed: $e');
         }
       }
       if (!mounted) return;
@@ -684,7 +696,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _isGenerating ? null : _downloadReportFromHome,
                       icon: const Icon(Icons.download, size: 18),
                       label: const Text('Download Report'),
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -693,7 +707,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _isGenerating ? null : _exportCsvFromHome,
                       icon: const Icon(Icons.table_chart, size: 18),
                       label: const Text('Export as CSV'),
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                 ],
@@ -819,7 +835,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       if (!mounted) {
-        _addLog('CSV exported: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)');
+        _addLog(
+          'CSV exported: ${savedPath.split('/').last} (widget not mounted, cannot show SnackBar)',
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -829,7 +847,9 @@ class _HomeScreenState extends State<HomeScreen> {
             action: SnackBarAction(
               label: 'Open',
               textColor: Colors.white,
-              onPressed: () { _openFile(savedPath); },
+              onPressed: () {
+                _openFile(savedPath);
+              },
             ),
           ),
         );
@@ -841,10 +861,14 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (ctx) {
             return AlertDialog(
               title: const Text('CSV exported'),
-              content: Text('${savedPath.split('/').last}\n\nSaved to:\n$savedPath'),
+              content: Text(
+                '${savedPath.split('/').last}\n\nSaved to:\n$savedPath',
+              ),
               actions: [
                 TextButton(
-                  onPressed: () { Navigator.of(ctx).pop(); },
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                  },
                   child: const Text('Close'),
                 ),
                 TextButton(
@@ -1230,7 +1254,9 @@ class _PreviewScreenState extends State<_PreviewScreen> {
                 TextButton(
                   onPressed: () {
                     final navigator = Navigator.of(context);
-                    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) navigator.pop(null); });
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) navigator.pop(null);
+                    });
                   },
                   child: const Text('Cancel'),
                 ),
@@ -1246,7 +1272,9 @@ class _PreviewScreenState extends State<_PreviewScreen> {
                             }
                           }
                           final navigator = Navigator.of(context);
-                          WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) navigator.pop(skip); });
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) navigator.pop(skip);
+                          });
                         },
                   child: const Text('Confirm and Apply'),
                 ),

@@ -160,17 +160,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             textColor: Colors.white,
             onPressed: () async {
               try {
+                await OpenFilex.open(path);
+                return;
+              } catch (e) {
+                debugPrint('OpenFilex.open failed: $e; falling back to launchUrl');
+              }
+              try {
                 final uri = Uri.file(path);
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                   return;
                 }
-              } catch (_) {}
-              try {
-                await OpenFilex.open(path);
-                return;
               } catch (e) {
-                debugPrint('OpenFilex.open failed: $e');
+                debugPrint('launchUrl fallback failed: $e');
               }
 
               messenger.showSnackBar(
@@ -530,18 +532,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           label: 'Open',
                                           textColor: Colors.white,
                                           onPressed: () async {
+                                            // Try OpenFilex first for local files, then fallback to url_launcher
+                                            try {
+                                              await OpenFilex.open(path);
+                                              return;
+                                            } catch (e) {
+                                              debugPrint('OpenFilex.open failed: $e; falling back to launchUrl');
+                                            }
                                             try {
                                               final uri = Uri.file(path);
                                               if (await canLaunchUrl(uri)) {
                                                 await launchUrl(uri, mode: LaunchMode.externalApplication);
                                                 return;
                                               }
-                                            } catch (_) {}
-                                            try {
-                                              await OpenFilex.open(path);
-                                              return;
                                             } catch (e) {
-                                              debugPrint('OpenFilex.open failed: $e');
+                                              debugPrint('launchUrl fallback failed: $e');
                                             }
 
                                             messenger.showSnackBar(
