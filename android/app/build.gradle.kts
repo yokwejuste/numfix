@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -38,17 +37,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.yokwejuste.numfyx"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Use Flutter-provided values if present in local.properties, otherwise fall back to safe defaults
         versionCode = flutterVersionCode ?: 1
         versionName = flutterVersionName ?: "1.0"
-
-        // Provide manifest placeholders (do not hard-code values in the manifest)
         manifestPlaceholders["applicationName"] = applicationNameFromLocal ?: "io.flutter.app.FlutterApplication"
         manifestPlaceholders["appLabel"] = applicationNameFromLocal ?: "numfyx"
     }
