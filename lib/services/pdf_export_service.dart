@@ -21,7 +21,6 @@ class PdfExportService {
 
       final bytes = await _generatePdfBytes(results);
       if (bytes == null) {
-        debugPrint('PdfExportService: Failed to generate PDF bytes');
         return null;
       }
 
@@ -33,28 +32,20 @@ class PdfExportService {
 
       final saved = await _writeAndVerify(appDocPath, bytes);
       if (!saved) {
-        debugPrint('PdfExportService: Failed to save to app documents');
         return null;
       }
 
       final publicPath = await _tryCopyToDownloads(appDocPath, fileName);
       final finalPath = publicPath ?? appDocPath;
 
-      debugPrint('PdfExportService: File saved to: $finalPath');
-
       if (autoOpen) {
         try {
           final result = await OpenFilex.open(finalPath);
-          debugPrint('PdfExportService: OpenFilex result: ${result.type} - ${result.message}');
-        } catch (e) {
-          debugPrint('PdfExportService: Failed to open file: $e');
-        }
+        } catch (e) {}
       }
 
       return finalPath;
     } catch (e, st) {
-      debugPrint('PdfExportService: Export failed: $e');
-      debugPrintStack(stackTrace: st);
       return null;
     }
   }
@@ -153,15 +144,11 @@ class PdfExportService {
       final bytes = await pdf.save();
 
       if (bytes.length < 8 || bytes[0] != 0x25 || bytes[1] != 0x50 || bytes[2] != 0x44 || bytes[3] != 0x46) {
-        debugPrint('PdfExportService: Invalid PDF header');
         return null;
       }
 
-      debugPrint('PdfExportService: Generated ${bytes.length} bytes');
       return bytes;
     } catch (e, st) {
-      debugPrint('PdfExportService: PDF generation failed: $e');
-      debugPrintStack(stackTrace: st);
       return null;
     }
   }
@@ -173,20 +160,16 @@ class PdfExportService {
       await file.writeAsBytes(bytes, flush: true);
 
       if (!await file.exists()) {
-        debugPrint('PdfExportService: File does not exist after write: $path');
         return false;
       }
 
       final written = await file.readAsBytes();
       if (written.length != bytes.length) {
-        debugPrint('PdfExportService: Size mismatch - expected ${bytes.length}, got ${written.length}');
         return false;
       }
 
-      debugPrint('PdfExportService: Verified write to $path (${bytes.length} bytes)');
       return true;
     } catch (e) {
-      debugPrint('PdfExportService: Write failed: $e');
       return false;
     }
   }
@@ -208,7 +191,6 @@ class PdfExportService {
 
       final downloadsDir = Directory(downloadsPath);
       if (!await downloadsDir.exists()) {
-        debugPrint('PdfExportService: Downloads dir does not exist');
         return null;
       }
 
@@ -220,7 +202,6 @@ class PdfExportService {
 
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        debugPrint('PdfExportService: Source file not found for copy');
         return null;
       }
 
@@ -228,13 +209,11 @@ class PdfExportService {
 
       final destFile = File(destPath);
       if (!await destFile.exists()) {
-        debugPrint('PdfExportService: Copy verification failed');
         return null;
       }
 
       return destPath;
     } catch (e) {
-      debugPrint('PdfExportService: Copy to downloads failed: $e');
       return null;
     }
   }

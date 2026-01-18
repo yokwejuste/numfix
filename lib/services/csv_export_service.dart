@@ -14,7 +14,6 @@ class CsvExportService {
     try {
       final csvContent = _generateCsvContent(results);
       if (csvContent.isEmpty) {
-        debugPrint('CsvExportService: No content to export');
         return null;
       }
 
@@ -26,21 +25,17 @@ class CsvExportService {
 
       final saved = await _writeAndVerify(appDocPath, csvContent);
       if (!saved) {
-        debugPrint('CsvExportService: Failed to save to app documents');
         return null;
       }
 
       final publicPath = await _tryCopyToDownloads(appDocPath, fileName);
       final finalPath = publicPath ?? appDocPath;
 
-      debugPrint('CsvExportService: File saved to: $finalPath');
-
       if (autoOpen) {
         try {
           final result = await OpenFilex.open(finalPath);
-          debugPrint('CsvExportService: OpenFilex result: ${result.type} - ${result.message}');
         } catch (e) {
-          debugPrint('CsvExportService: Failed to open file: $e');
+          // Handle file open error
         }
       }
 
@@ -88,20 +83,16 @@ class CsvExportService {
       await file.writeAsString(content, flush: true);
 
       if (!await file.exists()) {
-        debugPrint('CsvExportService: File does not exist after write: $path');
         return false;
       }
 
       final written = await file.readAsString();
       if (written.length != content.length) {
-        debugPrint('CsvExportService: Size mismatch - expected ${content.length}, got ${written.length}');
         return false;
       }
 
-      debugPrint('CsvExportService: Verified write to $path (${content.length} chars)');
       return true;
     } catch (e) {
-      debugPrint('CsvExportService: Write failed: $e');
       return false;
     }
   }
@@ -123,7 +114,6 @@ class CsvExportService {
 
       final downloadsDir = Directory(downloadsPath);
       if (!await downloadsDir.exists()) {
-        debugPrint('CsvExportService: Downloads dir does not exist');
         return null;
       }
 
@@ -135,7 +125,6 @@ class CsvExportService {
 
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        debugPrint('CsvExportService: Source file not found for copy');
         return null;
       }
 
@@ -143,13 +132,11 @@ class CsvExportService {
 
       final destFile = File(destPath);
       if (!await destFile.exists()) {
-        debugPrint('CsvExportService: Copy verification failed');
         return null;
       }
 
       return destPath;
     } catch (e) {
-      debugPrint('CsvExportService: Copy to downloads failed: $e');
       return null;
     }
   }
