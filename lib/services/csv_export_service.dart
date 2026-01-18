@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/contact_result.dart';
+import 'downloads_service.dart';
 
 class CsvExportService {
   static Future<String?> exportToCsv(
@@ -28,15 +30,14 @@ class CsvExportService {
         return null;
       }
 
-      final publicPath = await _tryCopyToDownloads(appDocPath, fileName);
+      final csvBytes = Uint8List.fromList(csvContent.codeUnits);
+      final publicPath = await _tryCopyToDownloads(fileName, csvBytes);
       final finalPath = publicPath ?? appDocPath;
 
       if (autoOpen) {
         try {
-          final result = await OpenFilex.open(finalPath);
-        } catch (e) {
-          // Handle file open error
-        }
+          await OpenFilex.open(finalPath);
+        } catch (e) {}
       }
 
       return finalPath;
@@ -97,47 +98,15 @@ class CsvExportService {
     }
   }
 
-  static Future<String?> _tryCopyToDownloads(String sourcePath, String fileName) async {
+  static Future<String?> _tryCopyToDownloads(String fileName, Uint8List bytes) async {
     if (!Platform.isAndroid) return null;
 
-    try {
-      String? downloadsPath;
+    final savedPath = await DownloadsService.saveToDownloads(
+      fileName: fileName,
+      bytes: bytes,
+      mimeType: 'text/csv',
+    );
 
-      try {
-        final exDirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
-        if (exDirs != null && exDirs.isNotEmpty) {
-          downloadsPath = exDirs.first.path;
-        }
-      } catch (_) {}
-
-      downloadsPath ??= '/storage/emulated/0/Download';
-
-      final downloadsDir = Directory(downloadsPath);
-      if (!await downloadsDir.exists()) {
-        return null;
-      }
-
-      final destPath = '$downloadsPath/$fileName';
-
-      if (sourcePath.startsWith(downloadsPath)) {
-        return sourcePath;
-      }
-
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) {
-        return null;
-      }
-
-      await sourceFile.copy(destPath);
-
-      final destFile = File(destPath);
-      if (!await destFile.exists()) {
-        return null;
-      }
-
-      return destPath;
-    } catch (e) {
-      return null;
-    }
+    return savedPath;
   }
 }

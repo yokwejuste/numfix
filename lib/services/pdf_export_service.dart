@@ -7,6 +7,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/contact_result.dart';
+import 'downloads_service.dart';
 
 class PdfExportService {
   static Future<String?> exportToPdf(
@@ -35,7 +36,7 @@ class PdfExportService {
         return null;
       }
 
-      final publicPath = await _tryCopyToDownloads(appDocPath, fileName);
+      final publicPath = await _tryCopyToDownloads(appDocPath, fileName, bytes);
       final finalPath = publicPath ?? appDocPath;
 
       if (autoOpen) {
@@ -174,48 +175,16 @@ class PdfExportService {
     }
   }
 
-  static Future<String?> _tryCopyToDownloads(String sourcePath, String fileName) async {
+  static Future<String?> _tryCopyToDownloads(String sourcePath, String fileName, Uint8List bytes) async {
     if (!Platform.isAndroid) return null;
 
-    try {
-      String? downloadsPath;
+    final savedPath = await DownloadsService.saveToDownloads(
+      fileName: fileName,
+      bytes: bytes,
+      mimeType: 'application/pdf',
+    );
 
-      try {
-        final exDirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
-        if (exDirs != null && exDirs.isNotEmpty) {
-          downloadsPath = exDirs.first.path;
-        }
-      } catch (_) {}
-
-      downloadsPath ??= '/storage/emulated/0/Download';
-
-      final downloadsDir = Directory(downloadsPath);
-      if (!await downloadsDir.exists()) {
-        return null;
-      }
-
-      final destPath = '$downloadsPath/$fileName';
-
-      if (sourcePath.startsWith(downloadsPath)) {
-        return sourcePath;
-      }
-
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) {
-        return null;
-      }
-
-      await sourceFile.copy(destPath);
-
-      final destFile = File(destPath);
-      if (!await destFile.exists()) {
-        return null;
-      }
-
-      return destPath;
-    } catch (e) {
-      return null;
-    }
+    return savedPath;
   }
 
   static String _sanitize(String text) {
