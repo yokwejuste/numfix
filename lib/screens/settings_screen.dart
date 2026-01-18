@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/backup_service.dart';
 import '../services/csv_export_service.dart';
 import '../services/pdf_export_service.dart';
+import '../services/restore_service.dart';
 import '../services/settings_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/common_widgets.dart';
@@ -25,6 +27,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isGenerating = false;
   int _csvThreshold = 2500;
   bool _isSavingThreshold = false;
+  List<BackupSession> _backups = [];
+  bool _isLoadingBackups = false;
+  bool _isRestoring = false;
 
   final Map<String, String> _countries = {
     'CM': 'Cameroon',
@@ -52,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadRegion();
     _loadCsvThreshold();
+    _loadBackups();
   }
 
   Future<void> _loadRegion() async {
@@ -104,6 +110,138 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Text('CSV threshold saved: $value'),
           backgroundColor: theme.colorScheme.primary,
         ),
+      );
+    }
+  }
+
+  Future<void> _loadBackups() async {
+    setState(() => _isLoadingBackups = true);
+    final backups = await BackupService.getBackups();
+    setState(() {
+      _backups = backups;
+      _isLoadingBackups = false;
+    });
+  }
+
+  Future<void> _restoreFromBackup(BackupSession backup) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore Contacts'),
+        content: Text(
+          'This will revert ${backup.totalChanges} phone number changes made on ${backup.formattedDate}.\n\nAre you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.tertiary),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRestoring = true);
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Material(
+              color: Colors.transparent,
+              child: Text(
+                'Restoring contacts...',
+                style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurface),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final result = await RestoreService.restoreFromBackup(backup);
+
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    setState(() => _isRestoring = false);
+
+    if (!mounted) return;
+
+    if (result.restored > 0) {
+      await BackupService.deleteBackup(backup.id);
+      await _loadBackups();
+    }
+
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(result.restored > 0 ? 'Restore Complete' : 'Restore Failed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Restored: ${result.restored}'),
+            Text('Failed: ${result.failed}'),
+            Text('Not found: ${result.notFound}'),
+            if (result.restored > 0) ...[
+              const SizedBox(height: 8),
+              const Text('Backup has been removed.', style: TextStyle(fontStyle: FontStyle.italic)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteBackup(BackupSession backup) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Backup'),
+        content: Text('Delete backup from ${backup.formattedDate}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await BackupService.deleteBackup(backup.id);
+    await _loadBackups();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backup deleted')),
       );
     }
   }
@@ -162,7 +300,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'Open',
-            textColor: Colors.white,
+            textColor: theme.colorScheme.onPrimary,
             onPressed: () async {
               try {
                 await OpenFilex.open(path);
@@ -189,9 +327,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
 
               messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('Unable to open file'),
-                  backgroundColor: Colors.red,
+                SnackBar(
+                  content: const Text('Unable to open file'),
+                  backgroundColor: theme.colorScheme.error,
                 ),
               );
             },
@@ -243,7 +381,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final themeService = Provider.of<ThemeService>(context);
 
     return SafeArea(
@@ -265,7 +402,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: theme.shadowColor.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -276,11 +413,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[850] : Colors.grey[200],
+                      color: theme.colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      isDark ? Icons.dark_mode : Icons.light_mode,
+                      theme.brightness == Brightness.dark ? Icons.dark_mode : Icons.light_mode,
                       color: theme.colorScheme.primary,
                       size: 22,
                     ),
@@ -300,7 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          isDark ? 'Dark theme active' : 'Light theme active',
+                          theme.brightness == Brightness.dark ? 'Dark theme active' : 'Light theme active',
                           style: TextStyle(
                             fontSize: 12,
                             color: theme.colorScheme.secondary,
@@ -310,7 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Switch(
-                    value: isDark,
+                    value: theme.brightness == Brightness.dark,
                     onChanged: (value) => themeService.toggleTheme(),
                     activeThumbColor: theme.colorScheme.primary,
                   ),
@@ -340,7 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[850] : Colors.grey[200],
+                          color: theme.colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -379,12 +516,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1A1A1A)
-                          : Colors.grey[100],
+                      color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isDark ? Colors.grey[800]! : Colors.grey[300]!,
+                        color: theme.colorScheme.outline,
                         width: 1,
                       ),
                     ),
@@ -439,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[850] : Colors.grey[200],
+                          color: theme.colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -548,7 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         duration: const Duration(seconds: 4),
                                         action: SnackBarAction(
                                           label: 'Open',
-                                          textColor: Colors.white,
+                                          textColor: theme.colorScheme.onPrimary,
                                           onPressed: () async {
                                             try {
                                               await OpenFilex.open(path);
@@ -575,11 +710,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             }
 
                                             messenger.showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
+                                              SnackBar(
+                                                content: const Text(
                                                   'Unable to open file',
                                                 ),
-                                                backgroundColor: Colors.red,
+                                                backgroundColor: localTheme.colorScheme.error,
                                               ),
                                             );
                                           },
@@ -588,9 +723,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     );
                                   } else {
                                     messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('CSV export failed'),
-                                        backgroundColor: Colors.red,
+                                      SnackBar(
+                                        content: const Text('CSV export failed'),
+                                        backgroundColor: localTheme.colorScheme.error,
                                       ),
                                     );
                                   }
@@ -630,7 +765,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[850] : Colors.grey[200],
+                          color: theme.colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -714,7 +849,145 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A1A1A) : Colors.grey[100],
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.restore,
+                          color: theme.colorScheme.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Restore Contacts',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Revert changes from previous runs',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.secondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _isLoadingBackups ? null : _loadBackups,
+                        icon: _isLoadingBackups
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh, size: 20),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_backups.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'No backups available',
+                          style: TextStyle(
+                            color: theme.colorScheme.secondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...List.generate(_backups.length, (index) {
+                      final backup = _backups[index];
+                      return Container(
+                        margin: EdgeInsets.only(bottom: index < _backups.length - 1 ? 8 : 0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    backup.formattedDate,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${backup.totalChanges} changes (${backup.region})',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: theme.colorScheme.secondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _isRestoring ? null : () => _restoreFromBackup(backup),
+                              icon: const Icon(Icons.restore, size: 20),
+                              tooltip: 'Restore',
+                            ),
+                            IconButton(
+                              onPressed: _isRestoring ? null : () => _deleteBackup(backup),
+                              icon: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error),
+                              tooltip: 'Delete',
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(

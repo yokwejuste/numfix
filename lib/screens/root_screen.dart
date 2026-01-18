@@ -17,7 +17,6 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       body: _pages[_index],
@@ -29,7 +28,7 @@ class _RootScreenState extends State<RootScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
+              color: theme.shadowColor.withValues(alpha: 0.15),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -42,7 +41,7 @@ class _RootScreenState extends State<RootScreen> {
             onTap: (i) => setState(() => _index = i),
             backgroundColor: Colors.transparent,
             selectedItemColor: theme.colorScheme.primary,
-            unselectedItemColor: isDark ? Colors.grey[600] : Colors.grey[400],
+            unselectedItemColor: theme.colorScheme.outline,
             elevation: 0,
             type: BottomNavigationBarType.fixed,
             showSelectedLabels: true,

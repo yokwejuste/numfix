@@ -18,7 +18,6 @@ class CountrySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return CardContainer(
       child: Row(
@@ -26,7 +25,7 @@ class CountrySelector extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[850] : Colors.grey[200],
+              color: theme.colorScheme.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -53,7 +52,7 @@ class CountrySelector extends StatelessWidget {
                   initialValue: selectedRegion,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: isDark ? Colors.grey[900] : Colors.grey[50],
+                    fillColor: theme.colorScheme.surfaceContainerHighest,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,

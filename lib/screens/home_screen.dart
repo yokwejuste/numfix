@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/contact_result.dart';
+import '../services/backup_service.dart';
 import '../services/contact_processing_service.dart';
 import '../services/csv_export_service.dart';
 import '../services/pdf_export_service.dart';
@@ -103,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Theme.of(context).colorScheme.primary,
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
         duration: Duration(seconds: isError ? 3 : 5),
       ),
     );
@@ -120,8 +121,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final contacts = await FlutterContacts.getContacts(
         withProperties: true,
-        withPhoto: false,
-        withAccounts: false,
+        withPhoto: true,
+        withAccounts: true,
       );
 
       final preview = await ContactProcessingService.computePreview(contacts, _currentRegion);
@@ -190,6 +191,18 @@ class _HomeScreenState extends State<HomeScreen> {
         onProgress: (p) => setState(() => _progress = p),
         onLog: _addLog,
       );
+
+      if (result.backupEntries.isNotEmpty) {
+        final backup = BackupSession(
+          id: BackupService.generateBackupId(),
+          timestamp: DateTime.now(),
+          region: _currentRegion,
+          totalChanges: result.backupEntries.length,
+          entries: result.backupEntries,
+        );
+        await BackupService.saveBackup(backup);
+        _addLog('Backup saved with ${result.backupEntries.length} changes');
+      }
 
       setState(() {
         _isProcessing = false;
@@ -277,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
           label: 'Open',
-          textColor: Colors.white,
+          textColor: Theme.of(context).colorScheme.onPrimary,
           onPressed: () => _openFile(savedPath),
         ),
       ),
@@ -344,7 +357,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -410,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(
                     _hasPermission ? Icons.check_circle : Icons.info_outline,
-                    color: _hasPermission ? Colors.green : Colors.orange,
+                    color: _hasPermission ? theme.colorScheme.primary : theme.colorScheme.tertiary,
                     size: 24,
                   ),
                   const SizedBox(width: 12),
@@ -460,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
                         value: _progress,
-                        backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
                         valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                         minHeight: 8,
                       ),
@@ -532,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 200,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A1A1A) : Colors.grey[100],
+                  color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListView.builder(
@@ -624,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: theme.brightness == Brightness.dark ? Colors.grey[850] : Colors.grey[200],
+              color: theme.colorScheme.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -924,8 +936,8 @@ class _PreviewScreenState extends State<_PreviewScreen> {
                             it.status,
                             style: TextStyle(
                               color: it.status == 'Will Update'
-                                  ? Colors.green
-                                  : (it.status == 'Will Fail' ? Colors.red : Colors.grey),
+                                  ? Theme.of(context).colorScheme.primary
+                                  : (it.status == 'Will Fail' ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.outline),
                             ),
                           ),
                         );

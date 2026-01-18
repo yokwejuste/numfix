@@ -17,7 +17,6 @@ class CardContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
@@ -27,7 +26,7 @@ class CardContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius ?? 16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            color: theme.shadowColor.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -57,7 +56,6 @@ class SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return CardContainer(
       child: InkWell(
@@ -68,7 +66,7 @@ class SettingsCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey[850] : Colors.grey[200],
+                color: theme.colorScheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: theme.colorScheme.primary, size: 22),
@@ -90,7 +88,7 @@ class SettingsCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle!,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 13, color: theme.colorScheme.secondary),
                     ),
                   ],
                 ],
@@ -121,7 +119,6 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -130,7 +127,7 @@ class StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: theme.shadowColor.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -167,7 +164,7 @@ class StatCard extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              color: theme.colorScheme.secondary,
             ),
           ),
         ],

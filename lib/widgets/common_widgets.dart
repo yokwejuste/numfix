@@ -108,7 +108,6 @@ class ProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -124,7 +123,7 @@ class ProgressCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+              backgroundColor: theme.colorScheme.surfaceContainerHigh,
               valueColor: AlwaysStoppedAnimation<Color>(
                 theme.colorScheme.primary,
               ),
@@ -136,7 +135,7 @@ class ProgressCard extends StatelessWidget {
             statusMessage,
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? Colors.grey[400] : Colors.grey[700],
+              color: theme.colorScheme.secondary,
             ),
           ),
         ],

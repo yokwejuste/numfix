@@ -1,6 +1,7 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 import '../models/contact_result.dart';
+import 'backup_service.dart';
 import 'phone_formatter_service.dart';
 
 class ServicePreviewItem {
@@ -21,6 +22,7 @@ class ProcessingResult {
   final int failed;
   final int updatedContacts;
   final int skippedContacts;
+  final List<ContactBackupEntry> backupEntries;
 
   ProcessingResult({
     required this.results,
@@ -30,6 +32,7 @@ class ProcessingResult {
     required this.failed,
     required this.updatedContacts,
     required this.skippedContacts,
+    required this.backupEntries,
   });
 }
 
@@ -99,6 +102,7 @@ class ContactProcessingService {
 
   static Future<ProcessingResult> processContacts(List<Contact> contacts, String region, {Set<String>? skipSet, void Function(double)? onProgress, void Function(String)? onLog}) async {
     final results = <ContactResult>[];
+    final backupEntries = <ContactBackupEntry>[];
     int totalContacts = contacts.length;
     int processed = 0;
     int updated = 0;
@@ -156,6 +160,13 @@ class ContactProcessingService {
 
         if (original.startsWith('00')) {
           final converted = '+${original.substring(2)}';
+          backupEntries.add(ContactBackupEntry(
+            contactId: contact.id,
+            contactName: contactName,
+            originalNumber: original,
+            newNumber: converted,
+            phoneIndex: i,
+          ));
           contact.phones[i] = Phone(converted, label: phone.label, customLabel: phone.customLabel, isPrimary: phone.isPrimary);
           contactModified = true;
           updated++;
@@ -168,6 +179,13 @@ class ContactProcessingService {
 
         final formatted = await PhoneFormatterService.formatToE164(original, region);
         if (formatted != null && formatted != original) {
+          backupEntries.add(ContactBackupEntry(
+            contactId: contact.id,
+            contactName: contactName,
+            originalNumber: original,
+            newNumber: formatted,
+            phoneIndex: i,
+          ));
           contact.phones[i] = Phone(formatted, label: phone.label, customLabel: phone.customLabel, isPrimary: phone.isPrimary);
           contactModified = true;
           updated++;
@@ -217,6 +235,7 @@ class ContactProcessingService {
       failed: failed,
       updatedContacts: updatedContacts,
       skippedContacts: skippedContacts,
+      backupEntries: backupEntries,
     );
   }
 }
